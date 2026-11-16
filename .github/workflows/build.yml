@@ -65,13 +65,22 @@ jobs:
       run: |
         cd build && ninja
     
-    - name: 获取 "libcrypto-1_1-x64.dll"
-      shell: bash 
+    - name: 获取 OpenSSL 3 DLL (libcrypto-3-x64 / libssl-3-x64)
+      shell: bash
       run: |
         GITHUB_REPOSITORY="${{ github.repository }}"
         REPO_NAME="${GITHUB_REPOSITORY#${{ github.repository_owner }}/}"
+        BIN=D:/a/$REPO_NAME/$REPO_NAME/build/bin
 
-        curl --ssl-revoke-best-effort -fL --retry 3 --retry-delay 2 -o D:/a/$REPO_NAME/$REPO_NAME/build/bin/libcrypto-1_1-x64.dll https://github.com/feenkcom/libopenssl/releases/download/v0.5.0/crypto-x86_64-pc-windows-msvc.dll
+        # Aseprite v1.3.18+ 需要 OpenSSL 3 的 libcrypto-3-x64.dll / libssl-3-x64.dll。
+        # 从 conda-forge 取完整的 MSVC 构建（feenkcom 的旧包缺符号，会导致 0xC0000139）。
+        curl --ssl-revoke-best-effort -fL --retry 3 --retry-delay 2 -o openssl.conda \
+          https://conda.anaconda.org/conda-forge/win-64/openssl-3.5.9-hf411b9b_0.conda
+        unzip -o -q openssl.conda -d openssl_extract
+        # .conda 内部是 zstd 压缩的 tar，用 bsdtar 解压
+        tar --zstd -xf openssl_extract/pkg-openssl-3.5.9-hf411b9b_0.tar.zst -C openssl_extract
+        cp openssl_extract/Library/bin/libcrypto-3-x64.dll $BIN/
+        cp openssl_extract/Library/bin/libssl-3-x64.dll $BIN/
     
     # # 请确保是私有仓库再启用该功能
     # - name: 上传文件到 artifact
@@ -83,7 +92,7 @@ jobs:
 
     #       D:/a/$REPO_NAME/$REPO_NAME/build/bin/data
     #       D:/a/$REPO_NAME/$REPO_NAME/build/bin/aseprite.exe
-    #       D:/a/$REPO_NAME/$REPO_NAME/build/bin/libcrypto-1_1-x64.dll
+    #       D:/a/$REPO_NAME/$REPO_NAME/build/bin/libcrypto-3-x64.dll
 
     - name: 打包
       shell: bash
@@ -91,7 +100,7 @@ jobs:
         REPO_NAME=${{ steps.get-content.outputs.repo-name }}
 
         cd D:/a/$REPO_NAME/$REPO_NAME/build/bin/
-        7z a -tzip aseprite.${{ github.event.inputs.tag_name }}.zip data aseprite.exe libcrypto-1_1-x64.dll
+        7z a -tzip aseprite.${{ github.event.inputs.tag_name }}.zip data aseprite.exe libcrypto-3-x64.dll libssl-3-x64.dll
         cp aseprite.${{ github.event.inputs.tag_name }}.zip D:/a/
 
     - name: 草拟 Release 并且上传文件
